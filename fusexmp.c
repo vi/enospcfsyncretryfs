@@ -1,11 +1,15 @@
 /*
   FUSE: Filesystem in Userspace
   Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
+  enospcfsyncretryfs - Vitaly "_Vi" Shukela <vi0oss@gmail.com>
 
   This program can be distributed under the terms of the GNU GPL.
   See the file COPYING.
 
   gcc -Wall `pkg-config fuse --cflags --libs` fusexmp.c -o fusexmp
+
+  Simple hack that forces a write to do fsync and retry when it gets ENOSPC
+    (for use with btrfs)
 */
 
 #define FUSE_USE_VERSION 26
@@ -264,15 +268,25 @@ static int xmp_write(const char *path, const char *buf, size_t size,
 {
 	int fd;
 	int res;
+    int retry_counter=0;
 
 	(void) fi;
 	fd = open(path, O_WRONLY);
 	if (fd == -1)
 		return -errno;
 
+retry:
 	res = pwrite(fd, buf, size, offset);
-	if (res == -1)
+	if (res == -1) {
+        if(errno==ENOSPC) {
+            ++retry_counter;
+            if (retry_counter<10) {
+                fsync(fd);
+                goto retry; 
+            }
+        }
 		res = -errno;
+    }
 
 	close(fd);
 	return res;
