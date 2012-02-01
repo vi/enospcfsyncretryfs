@@ -1,0 +1,3 @@
+BTRFS supports compression, but reports "no space left" eagerly when actually much more data can fit in.
+
+This hack catches ENOSPC on write and reties writes (after fsync) some times before propogating ENOSPC, allowing to use more space on BTRFS.
